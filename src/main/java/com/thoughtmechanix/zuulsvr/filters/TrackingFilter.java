@@ -7,10 +7,13 @@ import org.springframework.stereotype.Component;
 
 import com.netflix.zuul.ZuulFilter;
 import com.netflix.zuul.context.RequestContext;
+import com.thoughtmechanix.zuulsvr.config.ServiceConfig;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 
 @Component
 public class TrackingFilter extends ZuulFilter {
-	
 
 	private static final int FILTER_ORDER = 1;
 	private static final boolean SHOULD_FILTER = true;
@@ -18,6 +21,9 @@ public class TrackingFilter extends ZuulFilter {
 
 	@Autowired
 	private FilterUtils filterUtils;
+
+	@Autowired
+	private ServiceConfig serviceConfig;
 
 	@Override
 	public String filterType() {
@@ -45,7 +51,24 @@ public class TrackingFilter extends ZuulFilter {
 		return java.util.UUID.randomUUID().toString();
 	}
 
+	private String getOrganizationId() {
+		String result = "";
+		if (filterUtils.getAuthToken() != null) {
+			String authToken = filterUtils.getAuthToken().replace("Bearer ", "");
+			try {
+				Claims claims = Jwts.parser().setSigningKey(serviceConfig.getJwtSigningKey().getBytes("UTF-8"))
+						.parseClaimsJws(authToken).getBody();
+				result = (String) claims.get("organizationId");
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return result;
+	}
+
 	public Object run() {
+		
+		RequestContext ctx = RequestContext.getCurrentContext();
 
 		if (isCorrelationIdPresent()) {
 			logger.debug("tmx-correlation-id found in tracking filter: {}. ", filterUtils.getCorrelationId());
@@ -54,7 +77,8 @@ public class TrackingFilter extends ZuulFilter {
 			logger.debug("tmx-correlation-id generated in tracking filter: {}.", filterUtils.getCorrelationId());
 		}
 
-		RequestContext ctx = RequestContext.getCurrentContext();
+		logger.debug("The organization id from the token is : " + getOrganizationId());
+		filterUtils.setOrgId(getOrganizationId());
 		logger.debug("Processing incoming request for {}.", ctx.getRequest().getRequestURI());
 		return null;
 	}
