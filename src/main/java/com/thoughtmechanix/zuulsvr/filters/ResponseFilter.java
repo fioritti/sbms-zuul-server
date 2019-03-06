@@ -3,6 +3,7 @@ package com.thoughtmechanix.zuulsvr.filters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.sleuth.Tracer;
 import org.springframework.stereotype.Component;
 
 import com.netflix.zuul.ZuulFilter;
@@ -16,7 +17,7 @@ public class ResponseFilter extends ZuulFilter {
 	private static final boolean SHOULD_FILTER = true;
 
 	@Autowired
-	FilterUtils filterUtils;
+	Tracer tracer;
 
 	@Override
 	public String filterType() {
@@ -36,12 +37,7 @@ public class ResponseFilter extends ZuulFilter {
 	@Override
 	public Object run() {
 		RequestContext ctx = RequestContext.getCurrentContext();
-
-		logger.debug("Adding the correlation id to the outbound headers. {}", filterUtils.getCorrelationId());
-		ctx.getResponse().addHeader(FilterUtils.CORRELATION_ID, filterUtils.getCorrelationId());
-
-		logger.debug("Completing outgoing request for {}.", ctx.getRequest().getRequestURI());
-
+		ctx.getResponse().addHeader(FilterUtils.CORRELATION_ID, tracer.getCurrentSpan().traceIdString());
 		return null;
 	}
 
